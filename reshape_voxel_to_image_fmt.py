@@ -18,7 +18,7 @@ def reshape_voxel_to_image_fmt(voxel_array,shrink_to=0.25):
     compressed_tensor_reshaped = compressed_tensor.reshape((3, even_sides, even_sides))
     return compressed_tensor_reshaped
 
-result=reshape_voxel_to_image_fmt(array,.5)
+result=reshape_voxel_to_image_fmt(array,.25)
 print ("End result:" , result.shape)
 
 

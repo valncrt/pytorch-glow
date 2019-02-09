@@ -1,5 +1,5 @@
-#https://github.com/ecreager/pytorch-glow
-#CUDA_VISIBLE_DEVICES=0 python vai_train.py --depth 10 --coupling affine --batch_size 64 --print_every 100 --permutation conv
+# https://github.com/ecreager/pytorch-glow
+# CUDA_VISIBLE_DEVICES=0 python vai_train_2.py --depth 10 --coupling affine --batch_size 64 --print_every 100 --permutation conv
 
 from __future__ import print_function, division
 import torch
@@ -17,9 +17,8 @@ import time
 
 from invertible_layers import *
 from utils import *
-#from pytorch_get_data import *
+# from pytorch_get_data import *
 from torch.utils.data.sampler import SubsetRandomSampler
-
 
 from scipy import ndimage
 import os
@@ -36,8 +35,8 @@ import math
 
 # Ignore warnings
 import warnings
-warnings.filterwarnings("ignore")
 
+warnings.filterwarnings("ignore")
 
 # ------------------------------------------------------------------------------
 parser = argparse.ArgumentParser()
@@ -69,26 +68,20 @@ torch.manual_seed(0)
 torch.cuda.manual_seed_all(0)
 
 # loading / dataset preprocessing
-#tf = transforms.Compose([transforms.ToTensor(), lambda x: x + torch.zeros_like(x).uniform_(0., 1. / args.n_bins)])
+# Do I need this transform??
+tf = transforms.Compose([transforms.ToTensor(), lambda x: x + torch.zeros_like(x).uniform_(0., 1. / args.n_bins)])
 
-#train_loader = torch.utils.data.DataLoader(datasets.CIFAR10(args.data_dir, train=True,download=True, transform=tf), batch_size=args.batch_size,shuffle=True, num_workers=10, drop_last=True)
+# train_loader = torch.utils.data.DataLoader(datasets.CIFAR10(args.data_dir, train=True,download=True, transform=tf), batch_size=args.batch_size,shuffle=True, num_workers=10, drop_last=True)
 
-#test_loader = torch.utils.data.DataLoader(datasets.CIFAR10(args.data_dir, train=False,transform=tf), batch_size=args.batch_size, shuffle=False,num_workers=10)
+# test_loader = torch.utils.data.DataLoader(datasets.CIFAR10(args.data_dir, train=False,transform=tf), batch_size=args.batch_size, shuffle=False,num_workers=10)
 
 
-top_level_shapenet_dir='/home/ubuntu/work/data/shapenet/ShapeNetCore.v2/test_small' #test_small  testing
+top_level_shapenet_dir = '/home/ubuntu/work/data/shapenet/ShapeNetCore.v2/test_small'  # test_small  testing
 
 
 def voxels_to_3d_numpy_array(voxels):
     np_array = voxels.data
-    # print ("np_array_shape: ",np_array.shape)
-    # np_array = np_array.astype(float)
-    compressed_tensor = ndimage.zoom(np_array, 0.25).astype(np.float32)  # 0.5 = new size is 64,64,64, 0.25=32,32,32
-    # print (compressed_tensor)
-    global_dim_size = compressed_tensor.shape[0]
-    # print ("compressed_tensor shape ", compressed_tensor.shape,global_dim_size, "none zero ... ",np.count_nonzero(compressed_tensor))
-
-    return compressed_tensor
+    return np_array
 
 
 def read_file(file_path):
@@ -107,21 +100,27 @@ def get_dir_names_for_lables(parent_dir):
     return dir_names
 
 
-def reshape_voxel_to_image_fmt(voxel_array,shrink_to=0.25):
-    compressed_tensor = ndimage.zoom(voxel_array, shrink_to).astype(np.float32)  # 0.5 = new size is 64,64,64, 0.25=32,32,32
-    voxel_cnt = np.prod(compressed_tensor.shape) #total voxels
-    squared_rounded = math.sqrt(voxel_cnt / 3) #first dimension needs to be three
-    even_sides = int(math.ceil(squared_rounded)) #get even sides for image
+def reshape_voxel_to_image_fmt(voxel_array, shrink_to=0.25):
+    compressed_tensor = ndimage.zoom(voxel_array, shrink_to).astype(
+        np.float32)  # 0.5 = new size is 64,64,64, 0.25=32,32,32
+    voxel_cnt = np.prod(compressed_tensor.shape)  # total voxels
+    squared_rounded = math.sqrt(voxel_cnt / 3)  # first dimension needs to be three
+    even_sides = int(math.ceil(squared_rounded))  # get even sides for image, will be larger than actually needed
     zeroes_to_add = (3 * even_sides * even_sides) - voxel_cnt
-    compressed_tensor = compressed_tensor.reshape(-1)  #make a row to add zeroes too
-    compressed_tensor = np.pad(compressed_tensor, (0, zeroes_to_add), 'constant')  #add zeroes
+    compressed_tensor = compressed_tensor.reshape(-1)  # make a row to add zeroes too
+    compressed_tensor = np.pad(compressed_tensor, (0, zeroes_to_add), 'constant')  # add zeroes
     compressed_tensor_reshaped = compressed_tensor.reshape((3, even_sides, even_sides))
     return compressed_tensor_reshaped
 
 
 class Shapenet(Dataset):
 
-    def __init__(self, parent_dir, transform=None, file_suffix="surface.binvox"):
+    def __init__(self, parent_dir, transform=None, file_suffix="surface.binvox", target_transform=None):
+        self.data = []
+        self.targets = []
+        self.transform = transform
+        self.target_transform = target_transform
+
         self.parent_dir = parent_dir
         self.transform = transform
         self.file_suffix = file_suffix
@@ -141,25 +140,43 @@ class Shapenet(Dataset):
                         # print(counter, ' -->', filepath)
                         # voxels=read_file(filepath)
                         self.list_label_rows.append([float(dir_label), filepath])  # store in a dict
+                        self.targets.append(float(dir_label))
+
+                        # label_file_path = self.list_label_rows[idx]
+                        # label = label_file_path[0]
+                        voxel_array = read_file(filepath)
+                        voxel_array = reshape_voxel_to_image_fmt(voxel_array, 0.25)  # 0.25 =105, 0.5 =296
+                        voxel_array = np.asarray(voxel_array)
+                        # voxel_array=torch.from_numpy(voxel_array)
+                        self.data.append(voxel_array)
+
+                        # sample = { 'voxel_array': voxel_array,'label': label}
+
+        self.data = np.vstack(self.data).reshape(-1, 3, 105, 105)
+        self.data = self.data.transpose((0, 2, 3, 1))  # convert to HWC
 
     def __len__(self):
         return len(self.list_label_rows)
 
     def __getitem__(self, idx):
-        label_file_path = self.list_label_rows[idx]
-        label = label_file_path[0]
-        voxel_array = read_file(label_file_path[1])
-        print("voxel_array type ... ", type(voxel_array), voxel_array.shape)
-        voxel_array = reshape_voxel_to_image_fmt(voxel_array,0.25) #0.25 =105, 0.5 =296
-        sample = {'label': label, 'voxel_array': voxel_array}
+        img, target = self.data[idx], self.targets[idx]
+        img = img.reshape(3, 105, 105)
+        print("IMG: ", type(img), img.shape)
+        # img = Image.fromarray(img)
+        # img = Image.frombytes("RGB", (img.shape[0], img.shape[1]), img)
 
-        if self.transform:
-            sample = self.transform(sample)
+        if self.transform is not None:
+            img = self.transform(img)
 
-        return sample
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        img, target = self.data[idx], self.targets[idx]
+
+        return img, target
 
 
-dataset = Shapenet(top_level_shapenet_dir)
+dataset = Shapenet(top_level_shapenet_dir, transform=tf)
 
 # splitting code from https://stackoverflow.com/questions/50544730/how-do-i-split-a-custom-dataset-into-training-and-test-datasets
 batch_size = 16
@@ -186,8 +203,8 @@ test_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, sample
 
 #####################
 # construct model and ship to GPU
-model = Glow_((args.batch_size, 3, 105, 105), args).cuda()  #dependency to __getitem__
-print(model)
+model = Glow_((args.batch_size, 3, 105, 105), args).cuda()  # dependency to __getitem__
+# print(model)
 print("number of model parameters:", sum([np.prod(p.size()) for p in model.parameters()]))
 
 # set up the optimizer
@@ -195,15 +212,14 @@ optim = optim.Adam(model.parameters(), lr=1e-3)
 scheduler = torch.optim.lr_scheduler.StepLR(optim, step_size=45, gamma=0.1)
 
 # data dependant init
-#init_loader = torch.utils.data.DataLoader(datasets.CIFAR10(args.data_dir, train=True,download=True, transform=tf), batch_size=512, shuffle=True,num_workers=1)
+# init_loader = torch.utils.data.DataLoader(datasets.CIFAR10(args.data_dir, train=True,download=True, transform=tf), batch_size=512, shuffle=True,num_workers=1)
 init_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=1)
-
-
-print("shape init_loader ", init_loader.shape())
 
 with torch.no_grad():
     model.eval()
     for (img, _) in init_loader:
+        print("img: ", type(img), img.shape)
+        print("_: ", _)
         img = img.cuda()
         objective = torch.zeros_like(img[:, 0, 0, 0])
         _ = model(img, objective)
@@ -292,5 +308,6 @@ for epoch in range(start_epoch, args.n_epochs):
 
     if (epoch + 1) % args.save_every == 0:
         save_session(model, optim, args, epoch)
+
 
 
