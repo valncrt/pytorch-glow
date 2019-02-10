@@ -71,16 +71,15 @@ torch.cuda.manual_seed_all(0)
 # Do I need this transform??
 tf = transforms.Compose([transforms.ToTensor(), lambda x: x + torch.zeros_like(x).uniform_(0., 1. / args.n_bins)])
 
-# train_loader = torch.utils.data.DataLoader(datasets.CIFAR10(args.data_dir, train=True,download=True, transform=tf), batch_size=args.batch_size,shuffle=True, num_workers=10, drop_last=True)
-
-# test_loader = torch.utils.data.DataLoader(datasets.CIFAR10(args.data_dir, train=False,transform=tf), batch_size=args.batch_size, shuffle=False,num_workers=10)
-
-
 top_level_shapenet_dir = '/home/ubuntu/work/data/shapenet/ShapeNetCore.v2/test_small'  # test_small  testing
+
+image_side_cnt = 128  # 256 dependency to shrink_to
 
 
 def voxels_to_3d_numpy_array(voxels):
     np_array = voxels.data
+    print("array in non-zero ...", np.count_nonzero(np_array))
+
     return np_array
 
 
@@ -104,8 +103,10 @@ def reshape_voxel_to_image_fmt(voxel_array, shrink_to=0.25):
     compressed_tensor = ndimage.zoom(voxel_array, shrink_to).astype(
         np.float32)  # 0.5 = new size is 64,64,64, 0.25=32,32,32
     voxel_cnt = np.prod(compressed_tensor.shape)  # total voxels
-    squared_rounded = math.sqrt(voxel_cnt / 3)  # first dimension needs to be three
-    even_sides = int(math.ceil(squared_rounded))  # get even sides for image, will be larger than actually needed
+    # squared_rounded = math.sqrt(voxel_cnt / 3) #first dimension needs to be three
+    # even_sides = int(math.ceil(squared_rounded)) #get even sides for image, will be larger than actually needed
+    # even_sides = round_up_to_even(even_sides) #round to even because of stack trace in 'def squeeze_bchw' when sides are not divisable by 2 evenly
+    even_sides = image_side_cnt
     zeroes_to_add = (3 * even_sides * even_sides) - voxel_cnt
     compressed_tensor = compressed_tensor.reshape(-1)  # make a row to add zeroes too
     compressed_tensor = np.pad(compressed_tensor, (0, zeroes_to_add), 'constant')  # add zeroes
@@ -145,25 +146,24 @@ class Shapenet(Dataset):
                         # label_file_path = self.list_label_rows[idx]
                         # label = label_file_path[0]
                         voxel_array = read_file(filepath)
-                        voxel_array = reshape_voxel_to_image_fmt(voxel_array, 0.25)  # 0.25 =105, 0.5 =296
-                        voxel_array = np.asarray(voxel_array)
+                        voxel_array = reshape_voxel_to_image_fmt(voxel_array, 0.28)  # 0.25 =105, 0.5 =296
+                        print("voxel_array in non-zero ...", np.count_nonzero(voxel_array))
+                        voxel_array = np.asarray(voxel_array, dtype=np.float32)
                         # voxel_array=torch.from_numpy(voxel_array)
                         self.data.append(voxel_array)
 
                         # sample = { 'voxel_array': voxel_array,'label': label}
 
-        self.data = np.vstack(self.data).reshape(-1, 3, 105, 105)
-        self.data = self.data.transpose((0, 2, 3, 1))  # convert to HWC
+        self.data = np.vstack(self.data).reshape(-1, 3, image_side_cnt, image_side_cnt)
 
     def __len__(self):
         return len(self.list_label_rows)
 
     def __getitem__(self, idx):
         img, target = self.data[idx], self.targets[idx]
-        img = img.reshape(3, 105, 105)
-        print("IMG: ", type(img), img.shape)
+        # print ("IMG: ", type(img), img.shape)
         # img = Image.fromarray(img)
-        # img = Image.frombytes("RGB", (img.shape[0], img.shape[1]), img)
+        img = Image.frombytes("RGB", (img.shape[0], img.shape[1]), img)
 
         if self.transform is not None:
             img = self.transform(img)
@@ -203,7 +203,7 @@ test_loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, sample
 
 #####################
 # construct model and ship to GPU
-model = Glow_((args.batch_size, 3, 105, 105), args).cuda()  # dependency to __getitem__
+model = Glow_((args.batch_size, 3, image_side_cnt, image_side_cnt), args).cuda()  # dependency to __getitem__
 # print(model)
 print("number of model parameters:", sum([np.prod(p.size()) for p in model.parameters()]))
 
