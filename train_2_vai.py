@@ -73,12 +73,14 @@ tf = transforms.Compose([transforms.ToTensor(), lambda x: x + torch.zeros_like(x
 
 top_level_shapenet_dir = '/home/ubuntu/work/data/shapenet/ShapeNetCore.v2/test_small'  # test_small  testing
 
-image_side_cnt = 128  # 256 dependency to shrink_to
+image_side_cnt = 1024  # no shrinking... #128 #256 dependency to shrink_to
+
+device = 'cuda'  # 'cpu'
 
 
 def voxels_to_3d_numpy_array(voxels):
     np_array = voxels.data
-    print("array in non-zero ...", np.count_nonzero(np_array))
+    # print ( "array in non-zero ...",np.count_nonzero(np_array))
 
     return np_array
 
@@ -99,9 +101,23 @@ def get_dir_names_for_lables(parent_dir):
     return dir_names
 
 
+def convert_list_of_tensors_to_sparse_array(data_in):
+    index = np.transpose(np.nonzero(data_in))
+    index = torch.LongTensor(index)
+    index_size = index.size()
+    data = np.array(data_in)
+    data = data[data > 0.9]  # Special case testing only!!
+    data = torch.FloatTensor(data)
+    sparse_matrix = torch.sparse.FloatTensor(index.t(), data,torch.Size([index_size[0] + 1, 128, 128, 128]), device = device)
+    return sparse_matrix
+
+
 def reshape_voxel_to_image_fmt(voxel_array, shrink_to=0.25):
-    compressed_tensor = ndimage.zoom(voxel_array, shrink_to).astype(
-        np.float32)  # 0.5 = new size is 64,64,64, 0.25=32,32,32
+    # voxel_array=np.compress([False, False, False],voxel_array)
+    compressed_tensor = ndimage.zoom(voxel_array,
+                                     zoom=shrink_to)  # .astype(np.float32)  # 0.5 = new size is 64,64,64, 0.25=32,32,32
+    print("reshape_voxel_to_image_fmt in non-zero ...", np.count_nonzero(voxel_array),
+          np.count_nonzero(compressed_tensor))
     voxel_cnt = np.prod(compressed_tensor.shape)  # total voxels
     # squared_rounded = math.sqrt(voxel_cnt / 3) #first dimension needs to be three
     # even_sides = int(math.ceil(squared_rounded)) #get even sides for image, will be larger than actually needed
@@ -142,18 +158,14 @@ class Shapenet(Dataset):
                         # voxels=read_file(filepath)
                         self.list_label_rows.append([float(dir_label), filepath])  # store in a dict
                         self.targets.append(float(dir_label))
-
-                        # label_file_path = self.list_label_rows[idx]
-                        # label = label_file_path[0]
                         voxel_array = read_file(filepath)
-                        voxel_array = reshape_voxel_to_image_fmt(voxel_array, 0.28)  # 0.25 =105, 0.5 =296
-                        print("voxel_array in non-zero ...", np.count_nonzero(voxel_array))
+                        # print ( "voxel_array1 in non-zero ...",np.count_nonzero(voxel_array))
+                        voxel_array = reshape_voxel_to_image_fmt(voxel_array, 1)  # 1= no reshape , 0.25 =105, 0.5 =296
+
                         voxel_array = np.asarray(voxel_array, dtype=np.float32)
-                        # voxel_array=torch.from_numpy(voxel_array)
                         self.data.append(voxel_array)
 
-                        # sample = { 'voxel_array': voxel_array,'label': label}
-
+        self.data = convert_list_of_tensors_to_sparse_array(self.data)  # sparse array
         self.data = np.vstack(self.data).reshape(-1, 3, image_side_cnt, image_side_cnt)
 
     def __len__(self):
