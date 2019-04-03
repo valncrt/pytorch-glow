@@ -148,6 +148,7 @@ def process_file(customer_number, case_number, cust_name,  upload_date, attachem
         zip_ref.close()
 
 
+
 def get_cursor():
     connection = cx_Oracle.connect('SCQUERY/inquiry@oradbprod3.ptc.com/psnapdw.world')
     # print (connection.version)
