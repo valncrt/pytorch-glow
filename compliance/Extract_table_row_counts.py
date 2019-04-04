@@ -58,7 +58,7 @@ def remove_unneeded_lines(df):
 def remove_commas_from_table_row_counts(df):
     print(df['TABLE_NAME'].head(10))
     #df['NUM_ROWS'] = df['NUM_ROWS'].replace(np.nan, '', regex=True)
-    df['NUM_ROWS']=df['NUM_ROWS'].str.replace(',','')
+    df['NUM_ROWS']=df['NUM_ROWS'].astype(str).str.replace(',','')
     #df.NUM_ROWS = pd.to_numeric(df.NUM_ROWS, errors='coerce',downcast='integer')
     return df
 
@@ -187,7 +187,7 @@ def get_table_row_data_from_gather_info_oracle(oracle_report,output_file='/tmp/u
         for line in infile:
             #print (line)
             #print ("Line2: ", infile.readline())
-            if re.match("(.*)Report End: Windchill Release IDs(.*)", line) : #start of table section "**Report End: Windchill Release IDs"
+            if re.match("(.*)Report End: Windchill Release IDs(.*)" ): #start of table section
                 outfile.write(line) # add this
                 copy = True
             elif re.match("(.*)Report End on Tables(.*)", line): #end of table section "**Report End on Tables***"
