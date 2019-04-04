@@ -187,7 +187,7 @@ def get_table_row_data_from_gather_info_oracle(oracle_report,output_file='/tmp/u
         for line in infile:
             #print (line)
             #print ("Line2: ", infile.readline())
-            if re.match("(.*)Report End: Windchill Release IDs(.*)" ): #start of table section
+            if re.match("(.*)Report End: Windchill Release IDs(.*)" ,line): #start of table section
                 outfile.write(line) # add this
                 copy = True
             elif re.match("(.*)Report End on Tables(.*)", line): #end of table section "**Report End on Tables***"
