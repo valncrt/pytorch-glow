@@ -5,7 +5,7 @@ import os
 import requests, zipfile, io
 import cx_Oracle
 import re
-
+import codecs
 
 pd.options.mode.chained_assignment = None
 
@@ -63,7 +63,7 @@ def remove_commas_from_table_row_counts(df):
     return df
 
 def save_data_file(df,data_dir,cust_num):
-    current_date=datetime.datetime.today().strftime('%m-%d-%Y')
+    current_date=datetime.datetime.today().strftime('%m-%d-%Y-%f')
     file_name=cust_num+"-"+current_date
     columns=["Table_name","CNT","CUST_NUM","CASE_NUM","COMPANY_NAME","FILE_UPLOAD_DATE"]
     df=remove_unneeded_lines(df)
@@ -91,7 +91,7 @@ def get_file_from_url(link_to_attachement,unzip_dir):
         return link_to_attachement #file is local (for testing)
 
 def sqlserver_or_oracle(file_name):
-    with open(file_name) as file:
+    with codecs.open(file_name, 'r', encoding='utf-8',errors='ignore') as file:
         head = [next(file) for x in range(10)]
         print ("head: ", head)
         print("Inside sqlserver_or_oracle")
@@ -104,32 +104,39 @@ def sqlserver_or_oracle(file_name):
             return False
     print(head)
 
-def is_a_sql_server_report(file_name):
-    with open(file_name) as file:
-        head = [next(file) for x in range(100)]
-        print ("head: ", head)
-        head = ''.join(head)  #Convert from list to string for searching
-        if "Microsoft SQL Server" in head: #
-            print("Microsoft SQL Server Report  ...")
-            return True
-        else:
-            return False
+def is_a_sql_server_report(file_name,number_of_rows_to_check=100):
+    num_lines_in_file = sum(1 for line in codecs.open(file_name, 'r', encoding='utf-8',errors='ignore'))
+    if (num_lines_in_file >number_of_rows_to_check):
+        with codecs.open(file_name, 'r', encoding='utf-8',errors='ignore') as file:
+            head = [next(file) for x in range(number_of_rows_to_check)]
+            print ("head: ", head)
+            head = ''.join(head)  #Convert from list to string for searching
+            if "Microsoft SQL Server" in head: #
+                print("Microsoft SQL Server Report  ...")
+                return True
+            else:
+                return False
+    else:
+        return False
 
-def is_an_oracle_report(file_name):
-    with open(file_name) as file:
-        head = [next(file) for x in range(10)]
-        #print ("head: ", head)
-        head = ''.join(head)  #Convert from list to string for searching
-        if "Oracle Database " in head: #
-            print("Oracle Report  ...")
-            return True
-        else:
-            return False
-
+def is_an_oracle_report(file_name, number_of_rows_to_check=10):
+    num_lines_in_file = sum(1 for line in codecs.open(file_name, 'r', encoding='utf-8',errors='ignore'))
+    if(num_lines_in_file>number_of_rows_to_check):
+        with codecs.open(file_name, 'r', encoding='utf-8',errors='ignore') as file:
+            head = [next(file) for x in range(number_of_rows_to_check)]
+            #print ("head: ", head)
+            head = ''.join(head)  #Convert from list to string for searching
+            if "Oracle Database " in head: #
+                print("Oracle Report  ...")
+                return True
+            else:
+                return False
+    else:
+        return False
     #print(head)
 
 def extraxt_file_from_zip(file_in_zip,zip_ref):
-    print("Extractinsave_data_fileg file:  ", file_in_zip, "\n")
+    print("Checking file:  ", file_in_zip, "\n")
     zip_ref.extract(file_in_zip, unzip_dir)
     file_to_read_in = unzip_dir + "/" + file_in_zip
     return file_to_read_in
@@ -151,7 +158,7 @@ def remove_last_n_lines(file_name,number_of_lines_to_remove):
 def get_table_row_data_from_gather_info_sqlserver(sql_server_report,output_file='/tmp/unzips/sql_server_tables_temp.txt'):
     print ("Inside get_table_row_data_from_gather_info_sqlserver ... ",sql_server_report )
 
-    with open(sql_server_report,"r") as infile, open(output_file, 'w') as outfile:
+    with codecs.open(sql_server_report, 'r', encoding='utf-8',errors='ignore') as infile , open(output_file, 'w') as outfile:
         copy = False
         for line in infile:
             #print ("line ... ", line)
@@ -170,7 +177,7 @@ def get_table_row_data_from_gather_info_sqlserver(sql_server_report,output_file=
 
 def get_table_row_data_from_gather_info_oracle(oracle_report,output_file='/tmp/unzips/oracle_tables_temp.txt'):
     print ("Inside get_table_row_data_from_gather_info_oracle ...",oracle_report)
-    with open(oracle_report,"r") as infile, open(output_file, 'w') as outfile:
+    with codecs.open(oracle_report, 'r', encoding='utf-8',errors='ignore') as infile, open(output_file, 'w') as outfile:
         copy = False
         for line in infile:
             #print (line)
@@ -214,19 +221,25 @@ def process_file(customer_number, case_number, cust_name,  upload_date, attachem
                 if(is_a_sql_server_report(file_to_read_in)):
                     temp_tables_file=get_table_row_data_from_gather_info_sqlserver(file_to_read_in)
                     df = get_table_name_rows_from_file_sqlserver_gather_info(temp_tables_file)
+                    df = add_coumns_to_df(df, customer_number, case_number, cust_name, upload_date)
+                    print(df.columns)
+                    print("Saving file for: ", customer_number, case_number, cust_name, upload_date)
+                    save_data_file(df, data_dir, customer_number)
+                    remove_file_temp_file(file_to_read_in)
 
                 elif(is_an_oracle_report(file_to_read_in)):
 
                     temp_tables_file=get_table_row_data_from_gather_info_oracle(file_to_read_in)
                     df = get_table_name_rows_from_file_oracle(temp_tables_file)
+                    df = add_coumns_to_df(df, customer_number, case_number, cust_name, upload_date)
+                    print(df.columns)
+                    print("Saving file for: ", customer_number, case_number, cust_name, upload_date)
+                    save_data_file(df, data_dir, customer_number)
+                    remove_file_temp_file(file_to_read_in)
                 else:
                     remove_file_temp_file(file_to_read_in)
 
-                df = add_coumns_to_df(df, customer_number, case_number, cust_name, upload_date)
-                print (df.columns)
-                print("Saving file for: ",customer_number, case_number, cust_name, upload_date)
-                save_data_file(df,data_dir,customer_number)
-                remove_file_temp_file(file_to_read_in)
+
 
         zip_ref.close()
 
@@ -244,7 +257,7 @@ def get_cursor():
       where   cas.id=att.case__c   and prod.id =cas.PRODUCT__C and act.id = cas.ACCOUNTID and upper(prod.name) like '%WIND%' and
         (upper(ATTACHMENT_NAME__C) like '%REPORT%' or upper(ATTACHMENT_NAME__C) like '%SQL%' or upper(ATTACHMENT_NAME__C) like '%ORACLE%') and
       (upper(ATTACHMENT_NAME__C) like '%.ZIP%')-- or upper(ATTACHMENT_NAME__C) like '%.RAR%' or upper(ATTACHMENT_NAME__C) like '%.7Z%')
-      and cas.createddate >(sysdate -30) 
+      and cas.createddate >(sysdate -365*3) 
       minus
          select distinct cas.customer_number__c customer_number,cas.casenumber case_number,act.NAME cust_name, att.CREATEDDATE upload_date,att.attachment_link__c attachement_link
       from SFDC_SNAP.SF_CASE_ATTACHMENT__C att, SFDC_SNAP.SF_CASE cas, sf_product2 prod, SFDC_SNAP.sf_account act
@@ -254,7 +267,7 @@ def get_cursor():
     or upper(ATTACHMENT_NAME__C) like '%UPGRADE%' or upper(ATTACHMENT_NAME__C) like '%SQLHC%' or upper(ATTACHMENT_NAME__C) like '%ACL%'
     or upper(ATTACHMENT_NAME__C) like '%LICENS%' or upper(ATTACHMENT_NAME__C) like '%PRINCIPAL%' or upper(ATTACHMENT_NAME__C) like '%CABINET%'
     or upper(ATTACHMENT_NAME__C) like '%MS%' or upper(ATTACHMENT_NAME__C) like '%TEMPLATE%' or upper(ATTACHMENT_NAME__C) like '%INSTALL%') 
-    and cas.createddate >(sysdate -30)""")
+    and cas.createddate >(sysdate -365*3)""")
     return cursor
 
 def execute(data_dir,unzip_dir):
