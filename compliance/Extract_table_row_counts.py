@@ -136,10 +136,15 @@ def is_an_oracle_report(file_name, number_of_rows_to_check=10):
     #print(head)
 
 def extraxt_file_from_zip(file_in_zip,zip_ref):
+    error_code=0
     print("Checking file:  ", file_in_zip, "\n")
-    zip_ref.extract(file_in_zip, unzip_dir)
+    try:
+        zip_ref.extract(file_in_zip, unzip_dir)
+    except:
+        error_code=1
+        pass
     file_to_read_in = unzip_dir + "/" + file_in_zip
-    return file_to_read_in
+    return file_to_read_in,error_code
 
 def remove_first_n_lines(file_name,number_of_lines_to_remove):
     with open(file_name, 'r') as fin:
@@ -203,41 +208,42 @@ def process_file(customer_number, case_number, cust_name,  upload_date, attachem
         for file_in_zip in zip_ref.namelist():
             if (is_string_part_of(file_in_zip,"Tables.txt")):  #new gather info report where each report is in a file
 
-                file_to_read_in=extraxt_file_from_zip(file_in_zip, zip_ref)
-                if(sqlserver_or_oracle(file_to_read_in)):
-                    df = get_table_name_rows_from_file_oracle(file_to_read_in)
-                else:
-                    df = get_table_name_rows_from_file_sqlserver(file_to_read_in)
+                file_to_read_in,error_code=extraxt_file_from_zip(file_in_zip, zip_ref)
+                if(error_code ==0):# no problems
+                    if(sqlserver_or_oracle(file_to_read_in)):
+                        df = get_table_name_rows_from_file_oracle(file_to_read_in)
+                    else:
+                        df = get_table_name_rows_from_file_sqlserver(file_to_read_in)
 
-                df = add_coumns_to_df(df, customer_number, case_number, cust_name, upload_date)
-                print (df.columns)
-                print("Saving file for: ",customer_number, case_number, cust_name, upload_date)
-                save_data_file(df,data_dir,customer_number)
-                remove_file_temp_file(file_to_read_in)
+                    df = add_coumns_to_df(df, customer_number, case_number, cust_name, upload_date)
+                    print (df.columns)
+                    print("Saving file for: ",customer_number, case_number, cust_name, upload_date)
+                    save_data_file(df,data_dir,customer_number)
+                    remove_file_temp_file(file_to_read_in)
 
             elif (file_in_zip.endswith(".txt")): #look for old style gather info reoprts
-                file_to_read_in = extraxt_file_from_zip(file_in_zip, zip_ref)
+                file_to_read_in,error_code = extraxt_file_from_zip(file_in_zip, zip_ref)
+                if(error_code==0): #no problems reading the file
+                    if(is_a_sql_server_report(file_to_read_in)):
+                        temp_tables_file=get_table_row_data_from_gather_info_sqlserver(file_to_read_in)
+                        df = get_table_name_rows_from_file_sqlserver_gather_info(temp_tables_file)
+                        df = add_coumns_to_df(df, customer_number, case_number, cust_name, upload_date)
+                        print(df.columns)
+                        print("Saving file for: ", customer_number, case_number, cust_name, upload_date)
+                        save_data_file(df, data_dir, customer_number)
+                        remove_file_temp_file(file_to_read_in)
 
-                if(is_a_sql_server_report(file_to_read_in)):
-                    temp_tables_file=get_table_row_data_from_gather_info_sqlserver(file_to_read_in)
-                    df = get_table_name_rows_from_file_sqlserver_gather_info(temp_tables_file)
-                    df = add_coumns_to_df(df, customer_number, case_number, cust_name, upload_date)
-                    print(df.columns)
-                    print("Saving file for: ", customer_number, case_number, cust_name, upload_date)
-                    save_data_file(df, data_dir, customer_number)
-                    remove_file_temp_file(file_to_read_in)
+                    elif(is_an_oracle_report(file_to_read_in)):
 
-                elif(is_an_oracle_report(file_to_read_in)):
-
-                    temp_tables_file=get_table_row_data_from_gather_info_oracle(file_to_read_in)
-                    df = get_table_name_rows_from_file_oracle(temp_tables_file)
-                    df = add_coumns_to_df(df, customer_number, case_number, cust_name, upload_date)
-                    print(df.columns)
-                    print("Saving file for: ", customer_number, case_number, cust_name, upload_date)
-                    save_data_file(df, data_dir, customer_number)
-                    remove_file_temp_file(file_to_read_in)
-                else:
-                    remove_file_temp_file(file_to_read_in)
+                        temp_tables_file=get_table_row_data_from_gather_info_oracle(file_to_read_in)
+                        df = get_table_name_rows_from_file_oracle(temp_tables_file)
+                        df = add_coumns_to_df(df, customer_number, case_number, cust_name, upload_date)
+                        print(df.columns)
+                        print("Saving file for: ", customer_number, case_number, cust_name, upload_date)
+                        save_data_file(df, data_dir, customer_number)
+                        remove_file_temp_file(file_to_read_in)
+                    else:
+                        remove_file_temp_file(file_to_read_in)
 
 
 
