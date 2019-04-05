@@ -292,7 +292,7 @@ def get_cursor():
       from SFDC_SNAP.SF_CASE_ATTACHMENT__C att, SFDC_SNAP.SF_CASE cas, sf_product2 prod, SFDC_SNAP.sf_account act
       where   cas.id=att.case__c   and prod.id =cas.PRODUCT__C and act.id = cas.ACCOUNTID and upper(prod.name) like '%WIND%' and
         (upper(ATTACHMENT_NAME__C) like '%REPORT%' or upper(ATTACHMENT_NAME__C) like '%SQL%' or upper(ATTACHMENT_NAME__C) like '%ORACLE%') and
-      (upper(ATTACHMENT_NAME__C) like '%.ZIP%')-- or upper(ATTACHMENT_NAME__C) like '%.RAR%' or upper(ATTACHMENT_NAME__C) like '%.7Z%')
+      (upper(ATTACHMENT_NAME__C) like '%.ZIP%' or upper(ATTACHMENT_NAME__C) like '%.TXT%')-- or upper(ATTACHMENT_NAME__C) like '%.RAR%' or upper(ATTACHMENT_NAME__C) like '%.7Z%')
       and cas.createddate >(sysdate -365*3) 
       minus
          select distinct cas.customer_number__c customer_number,cas.casenumber case_number,act.NAME cust_name, att.CREATEDDATE upload_date,att.attachment_link__c attachement_link
@@ -333,6 +333,7 @@ gather_info_text="http://internal.ptc.com/salesforce/attachments/cases/13/77/93/
 
 oracle_gather_info_report="/Users/Stephen/Downloads/report.txt.zip"
 sql_server_gather_info="/Users/Stephen/Downloads/sql2014.20181016.report.zip"
+
 
 #process_text_file("111", "2222", "made_up_customer",  '1-1-2019', gather_info_text, unzip_dir, data_dir)
 
