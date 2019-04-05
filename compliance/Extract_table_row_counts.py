@@ -6,6 +6,7 @@ import requests, zipfile, io
 import cx_Oracle
 import re
 import codecs
+import urllib
 
 pd.options.mode.chained_assignment = None
 
@@ -200,7 +201,7 @@ def get_table_row_data_from_gather_info_oracle(oracle_report,output_file='/tmp/u
     return output_file
 
 
-def process_file(customer_number, case_number, cust_name,  upload_date, attachement_link,unzip_dir,data_dir):
+def process_zip_file(customer_number, case_number, cust_name,  upload_date, attachement_link,unzip_dir,data_dir):
     zip_file=get_file_from_url(attachement_link,unzip_dir)
     if (os.path.getsize(zip_file) >1000 and attachement_link.endswith(".zip")): #make sure the file isn't empty and is a zip
         zip_ref = zipfile.ZipFile(zip_file, 'r')
@@ -244,10 +245,39 @@ def process_file(customer_number, case_number, cust_name,  upload_date, attachem
                         remove_file_temp_file(file_to_read_in)
                     else:
                         remove_file_temp_file(file_to_read_in)
-
-
-
         zip_ref.close()
+
+
+def process_text_file(customer_number, case_number, cust_name,  upload_date, attachement_link,unzip_dir,data_dir): #old style gather info reports attached as txt files
+    file="/tmp/unzips/temp_report.txt"
+    error_code=0
+    try:
+        urllib.request.urlretrieve(attachement_link, file)
+    except:
+        error_code=1
+        pass
+    if(error_code==0 and os.path.getsize(file) >1000): #no problems downloading text file
+        if(is_a_sql_server_report(file)):
+            temp_tables_file=get_table_row_data_from_gather_info_sqlserver(file)
+            df = get_table_name_rows_from_file_sqlserver_gather_info(temp_tables_file)
+            df = add_coumns_to_df(df, customer_number, case_number, cust_name, upload_date)
+            print(df.columns)
+            print("Saving file for: ", customer_number, case_number, cust_name, upload_date)
+            save_data_file(df, data_dir, customer_number)
+            remove_file_temp_file(file)
+
+        elif(is_an_oracle_report(file)):
+
+            temp_tables_file=get_table_row_data_from_gather_info_oracle(file)
+            df = get_table_name_rows_from_file_oracle(temp_tables_file)
+            df = add_coumns_to_df(df, customer_number, case_number, cust_name, upload_date)
+            print(df.columns)
+            print("Saving file for: ", customer_number, case_number, cust_name, upload_date)
+            save_data_file(df, data_dir, customer_number)
+            remove_file_temp_file(file)
+        else:
+            remove_file_temp_file(file)
+
 
 
 
@@ -286,7 +316,10 @@ def execute(data_dir,unzip_dir):
         if(attachement_link.find('?')>0): #bypass links with question marks
             print("Not downloading file for link: ",attachement_link)
         else:
-            process_file(customer_number, case_number,cust_name, year_month_day , attachement_link, unzip_dir, data_dir)
+            if(attachement_link.endswith(".zip") ):
+                process_zip_file(customer_number, case_number,cust_name, year_month_day , attachement_link, unzip_dir, data_dir)
+            elif (attachement_link.endswith(".txt")):
+                process_text_file(customer_number, case_number, cust_name, year_month_day, attachement_link, unzip_dir,data_dir)
 
 file="/Users/Stephen/Downloads/oracleperf_gpdmp02_GTT_Production.zip"
 unzip_dir="/tmp/unzips"
@@ -296,10 +329,11 @@ data_dir="/tmp/table_data"
 #url="http://internal.ptc.com/salesforce/attachments/cases/14/81/35/23/oracle_perf_html.zip"
 #url="http://internal.ptc.com/salesforce/attachments/cases/14/83/18/98/remis_reporting_cogstartup.zip"
 #sql_server_zip="/Users/Stephen/Downloads/C14682851_sqlperf-v7.zip"
+gather_info_text="http://internal.ptc.com/salesforce/attachments/cases/13/77/93/91/gather_info_script_report.txt"
 
 oracle_gather_info_report="/Users/Stephen/Downloads/report.txt.zip"
 sql_server_gather_info="/Users/Stephen/Downloads/sql2014.20181016.report.zip"
 
-#process_file("111", "2222", "made_up_customer",  '1-1-2019', oracle_gather_info_report, unzip_dir, data_dir)
+#process_text_file("111", "2222", "made_up_customer",  '1-1-2019', gather_info_text, unzip_dir, data_dir)
 
 execute(data_dir,unzip_dir)
