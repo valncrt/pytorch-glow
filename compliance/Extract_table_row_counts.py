@@ -52,8 +52,8 @@ def add_coumns_to_df(df,cust_num,case_num,company_name,upload_date):
 
 def remove_unneeded_lines(df):
     to_drop = ['----']
-    #print (df.columns)
-    df=df[~df['TABLE_NAME'].str.contains('|'.join(to_drop))]
+    #print ("remove_unneeded_lines",df.columns,df.head())
+    df=df[~df['TABLE_NAME'].astype(str).str.contains('|'.join(to_drop))]
     return df
 
 def remove_commas_from_table_row_counts(df):
@@ -256,6 +256,7 @@ def process_text_file(customer_number, case_number, cust_name,  upload_date, att
     except:
         error_code=1
         pass
+
     if(error_code==0 and os.path.getsize(file) >1000): #no problems downloading text file
         if(is_a_sql_server_report(file)):
             temp_tables_file=get_table_row_data_from_gather_info_sqlserver(file)
@@ -264,20 +265,18 @@ def process_text_file(customer_number, case_number, cust_name,  upload_date, att
             print(df.columns)
             print("Saving file for: ", customer_number, case_number, cust_name, upload_date)
             save_data_file(df, data_dir, customer_number)
-            remove_file_temp_file(file)
 
         elif(is_an_oracle_report(file)):
-
             temp_tables_file=get_table_row_data_from_gather_info_oracle(file)
             df = get_table_name_rows_from_file_oracle(temp_tables_file)
             df = add_coumns_to_df(df, customer_number, case_number, cust_name, upload_date)
             print(df.columns)
             print("Saving file for: ", customer_number, case_number, cust_name, upload_date)
             save_data_file(df, data_dir, customer_number)
-            remove_file_temp_file(file)
         else:
             remove_file_temp_file(file)
 
+        remove_file_temp_file(file)
 
 
 
@@ -330,7 +329,7 @@ data_dir="/tmp/table_data"
 #url="http://internal.ptc.com/salesforce/attachments/cases/14/83/18/98/remis_reporting_cogstartup.zip"
 #sql_server_zip="/Users/Stephen/Downloads/C14682851_sqlperf-v7.zip"
 gather_info_text="http://internal.ptc.com/salesforce/attachments/cases/13/77/93/91/gather_info_script_report.txt"
-
+gather_info_text="http://internal.ptc.com/salesforce/attachments/cases/13/79/15/04/report.txt"
 oracle_gather_info_report="/Users/Stephen/Downloads/report.txt.zip"
 sql_server_gather_info="/Users/Stephen/Downloads/sql2014.20181016.report.zip"
 
