@@ -292,7 +292,7 @@ def get_cursor():
       where   cas.id=att.case__c   and prod.id =cas.PRODUCT__C and act.id = cas.ACCOUNTID and upper(prod.name) like '%WIND%' and
         (upper(ATTACHMENT_NAME__C) like '%REPORT%' or upper(ATTACHMENT_NAME__C) like '%SQL%' or upper(ATTACHMENT_NAME__C) like '%ORACLE%') and
       (upper(ATTACHMENT_NAME__C) like '%.ZIP%' or upper(ATTACHMENT_NAME__C) like '%.TXT%')-- or upper(ATTACHMENT_NAME__C) like '%.RAR%' or upper(ATTACHMENT_NAME__C) like '%.7Z%')
-      and cas.createddate >(sysdate -365*3) 
+      and cas.createddate >(sysdate -31) 
       minus
          select distinct cas.customer_number__c customer_number,cas.casenumber case_number,act.NAME cust_name, att.CREATEDDATE upload_date,att.attachment_link__c attachement_link
       from SFDC_SNAP.SF_CASE_ATTACHMENT__C att, SFDC_SNAP.SF_CASE cas, sf_product2 prod, SFDC_SNAP.sf_account act
@@ -302,7 +302,7 @@ def get_cursor():
     or upper(ATTACHMENT_NAME__C) like '%UPGRADE%' or upper(ATTACHMENT_NAME__C) like '%SQLHC%' or upper(ATTACHMENT_NAME__C) like '%ACL%'
     or upper(ATTACHMENT_NAME__C) like '%LICENS%' or upper(ATTACHMENT_NAME__C) like '%PRINCIPAL%' or upper(ATTACHMENT_NAME__C) like '%CABINET%'
     or upper(ATTACHMENT_NAME__C) like '%MS%' or upper(ATTACHMENT_NAME__C) like '%TEMPLATE%' or upper(ATTACHMENT_NAME__C) like '%INSTALL%') 
-    and cas.createddate >(sysdate -365*3)""")
+    and cas.createddate >(sysdate -31)""")
     return cursor
 
 def execute(data_dir,unzip_dir):
